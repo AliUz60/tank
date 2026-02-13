@@ -14,6 +14,24 @@ window.addEventListener("resize", () => {
   canvas.height = H;
 });
 
+/* ===========================
+   TANK SPRITE CROP AYARI
+   =========================== */
+// BURAYI DEĞİŞTİREREK TANKI KIRPARSIN
+// sx = soldan kaç px
+// sy = üstten kaç px
+// sw = tank genişliği
+// sh = tank yüksekliği
+const TANK_SPRITE = {
+  sx: 90,
+  sy: 150,
+  sw: 350,
+  sh: 250
+};
+
+/* ===========================
+   UI ELEMENTS
+   =========================== */
 const hpText = document.getElementById("hpText");
 const maxHpText = document.getElementById("maxHpText");
 const scoreText = document.getElementById("scoreText");
@@ -34,22 +52,34 @@ const gameOverUI = document.getElementById("gameOver");
 const finalScore = document.getElementById("finalScore");
 const restartBtn = document.getElementById("restart");
 
+/* ===========================
+   ASSETS
+   =========================== */
 const tankImg = new Image();
 tankImg.src = "assets/tank.png";
 
 const boomSound = new Audio("assets/patlama.mp3");
-boomSound.volume = 0.6;
+boomSound.volume = 0.65;
 
 function playBoom() {
   boomSound.currentTime = 0;
   boomSound.play();
 }
 
+/* ===========================
+   INPUT
+   =========================== */
 let keys = {};
 let mouse = { x: W / 2, y: H / 2, down: false };
 
 document.addEventListener("keydown", (e) => {
   keys[e.key.toLowerCase()] = true;
+
+  // SHOP toggle
+  if (e.key.toLowerCase() === "e") {
+    if (!shopOpen) openShop();
+    else closeShopUI();
+  }
 });
 
 document.addEventListener("keyup", (e) => {
@@ -64,6 +94,59 @@ canvas.addEventListener("mousemove", (e) => {
 canvas.addEventListener("mousedown", () => mouse.down = true);
 canvas.addEventListener("mouseup", () => mouse.down = false);
 
+/* ===========================
+   MOBILE CONTROLS
+   =========================== */
+function setupMobileButton(btnId, keyName) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+
+  btn.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    keys[keyName] = true;
+  });
+
+  btn.addEventListener("touchend", (e) => {
+    e.preventDefault();
+    keys[keyName] = false;
+  });
+}
+
+setupMobileButton("btnUp", "w");
+setupMobileButton("btnDown", "s");
+setupMobileButton("btnLeft", "a");
+setupMobileButton("btnRight", "d");
+
+const btnShoot = document.getElementById("btnShoot");
+const btnDash = document.getElementById("btnDash");
+
+if (btnShoot) {
+  btnShoot.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    mouse.down = true;
+  });
+
+  btnShoot.addEventListener("touchend", (e) => {
+    e.preventDefault();
+    mouse.down = false;
+  });
+}
+
+if (btnDash) {
+  btnDash.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    keys["shift"] = true;
+  });
+
+  btnDash.addEventListener("touchend", (e) => {
+    e.preventDefault();
+    keys["shift"] = false;
+  });
+}
+
+/* ===========================
+   UTILS
+   =========================== */
 function rand(min, max) {
   return Math.random() * (max - min) + min;
 }
@@ -76,20 +159,26 @@ function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
 
-/* CAMERA */
+/* ===========================
+   CAMERA
+   =========================== */
 let cam = {
   x: 0,
   y: 0,
   shake: 0
 };
 
-/* GAME WORLD */
+/* ===========================
+   WORLD SETTINGS
+   =========================== */
 const world = {
   width: 2600,
   height: 2000
 };
 
-/* WALLS */
+/* ===========================
+   WALLS
+   =========================== */
 let walls = [
   { x: 500, y: 400, w: 500, h: 60 },
   { x: 900, y: 800, w: 60, h: 500 },
@@ -107,6 +196,9 @@ function rectCircleCollide(rx, ry, rw, rh, cx, cy, cr) {
   return (dx * dx + dy * dy) < cr * cr;
 }
 
+/* ===========================
+   GAME OBJECTS
+   =========================== */
 let player = {
   x: world.width / 2,
   y: world.height / 2,
@@ -133,6 +225,57 @@ let gold = 0;
 let gameOver = false;
 let shopOpen = false;
 
+/* ===========================
+   SHOP
+   =========================== */
+function openShop() {
+  shopOpen = true;
+  shopUI.style.display = "block";
+}
+
+function closeShopUI() {
+  shopOpen = false;
+  shopUI.style.display = "none";
+}
+
+closeShop.addEventListener("click", () => closeShopUI());
+
+buyDmg.addEventListener("click", () => {
+  if (gold >= 50) {
+    gold -= 50;
+    player.damage += 5;
+  }
+});
+
+buySpeed.addEventListener("click", () => {
+  if (gold >= 50) {
+    gold -= 50;
+    player.speed += 0.4;
+  }
+});
+
+buyMaxHp.addEventListener("click", () => {
+  if (gold >= 70) {
+    gold -= 70;
+    player.maxHp += 20;
+    player.hp = player.maxHp;
+  }
+});
+
+buyFireRate.addEventListener("click", () => {
+  if (gold >= 80) {
+    gold -= 80;
+    player.fireRate = Math.max(4, player.fireRate - 2);
+  }
+});
+
+restartBtn.addEventListener("click", () => {
+  resetGame();
+});
+
+/* ===========================
+   ENEMY SPAWN
+   =========================== */
 function spawnEnemy() {
   let side = Math.floor(rand(0, 4));
   let x, y;
@@ -148,26 +291,32 @@ function spawnEnemy() {
     hp: 60 + level * 18,
     maxHp: 60 + level * 18,
     speed: 1.4 + level * 0.12,
-    shootCooldown: rand(50, 100),
+    shootCooldown: rand(60, 130),
     turretAngle: 0
   });
 }
 
+/* ===========================
+   EXPLOSION PARTICLES
+   =========================== */
 function explode(x, y) {
   playBoom();
-  cam.shake = 12;
+  cam.shake = 14;
 
   for (let i = 0; i < 35; i++) {
     particles.push({
       x, y,
       vx: rand(-4, 4),
       vy: rand(-4, 4),
-      life: rand(25, 60),
+      life: rand(25, 65),
       size: rand(2, 7)
     });
   }
 }
 
+/* ===========================
+   SHOOT
+   =========================== */
 function shoot(fromEnemy = false, enemyObj = null) {
   if (!fromEnemy) {
     if (player.fireCooldown > 0) return;
@@ -201,6 +350,9 @@ function shoot(fromEnemy = false, enemyObj = null) {
   cam.shake = Math.max(cam.shake, 4);
 }
 
+/* ===========================
+   COLLISION WITH WALLS
+   =========================== */
 function resolveWallCollision(obj) {
   for (let w of walls) {
     if (rectCircleCollide(w.x, w.y, w.w, w.h, obj.x, obj.y, obj.radius)) {
@@ -219,6 +371,9 @@ function resolveWallCollision(obj) {
   }
 }
 
+/* ===========================
+   CAMERA FOLLOW
+   =========================== */
 function updateCamera() {
   cam.x = player.x - W / 2;
   cam.y = player.y - H / 2;
@@ -230,11 +385,13 @@ function updateCamera() {
   else cam.shake = 0;
 }
 
+/* ===========================
+   DRAW BACKGROUND + WALLS
+   =========================== */
 function drawWorld() {
   ctx.fillStyle = "#06080f";
   ctx.fillRect(0, 0, W, H);
 
-  // grid
   ctx.strokeStyle = "rgba(255,255,255,0.05)";
   ctx.lineWidth = 1;
 
@@ -252,16 +409,18 @@ function drawWorld() {
     ctx.stroke();
   }
 
-  // walls
   for (let w of walls) {
     ctx.fillStyle = "rgba(120,120,140,0.35)";
     ctx.fillRect(w.x - cam.x, w.y - cam.y, w.w, w.h);
 
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
     ctx.strokeRect(w.x - cam.x, w.y - cam.y, w.w, w.h);
   }
 }
 
+/* ===========================
+   DRAW TANK (SPRITE + CROP)
+   =========================== */
 function drawTankSprite(x, y, angle, size, tint = null) {
   ctx.save();
   ctx.translate(x - cam.x, y - cam.y);
@@ -274,11 +433,24 @@ function drawTankSprite(x, y, angle, size, tint = null) {
     ctx.globalAlpha = 1;
   }
 
-  ctx.drawImage(tankImg, -size / 2, -size / 2, size, size);
+  ctx.drawImage(
+    tankImg,
+    TANK_SPRITE.sx,
+    TANK_SPRITE.sy,
+    TANK_SPRITE.sw,
+    TANK_SPRITE.sh,
+    -size / 2,
+    -size / 2,
+    size,
+    size
+  );
 
   ctx.restore();
 }
 
+/* ===========================
+   HEALTH BAR
+   =========================== */
 function drawHealthBar(x, y, hp, maxHp) {
   let w = 55;
   let h = 7;
@@ -294,6 +466,9 @@ function drawHealthBar(x, y, hp, maxHp) {
   ctx.strokeRect(x - w / 2 - cam.x, y - 40 - cam.y, w, h);
 }
 
+/* ===========================
+   UI UPDATE
+   =========================== */
 function updateUI() {
   hpText.textContent = Math.floor(player.hp);
   maxHpText.textContent = player.maxHp;
@@ -305,59 +480,9 @@ function updateUI() {
   shopGold.textContent = gold;
 }
 
-function openShop() {
-  shopOpen = true;
-  shopUI.style.display = "block";
-}
-
-function closeShopUI() {
-  shopOpen = false;
-  shopUI.style.display = "none";
-}
-
-document.addEventListener("keydown", (e) => {
-  if (e.key.toLowerCase() === "e") {
-    if (!shopOpen) openShop();
-    else closeShopUI();
-  }
-});
-
-closeShop.addEventListener("click", () => closeShopUI());
-
-buyDmg.addEventListener("click", () => {
-  if (gold >= 50) {
-    gold -= 50;
-    player.damage += 5;
-  }
-});
-
-buySpeed.addEventListener("click", () => {
-  if (gold >= 50) {
-    gold -= 50;
-    player.speed += 0.4;
-  }
-});
-
-buyMaxHp.addEventListener("click", () => {
-  if (gold >= 70) {
-    gold -= 70;
-    player.maxHp += 20;
-    player.hp = player.maxHp;
-  }
-});
-
-buyFireRate.addEventListener("click", () => {
-  if (gold >= 80) {
-    gold -= 80;
-    player.fireRate = Math.max(4, player.fireRate - 2);
-    gold -= 0;
-  }
-});
-
-restartBtn.addEventListener("click", () => {
-  resetGame();
-});
-
+/* ===========================
+   RESET GAME
+   =========================== */
 function resetGame() {
   player.x = world.width / 2;
   player.y = world.height / 2;
@@ -384,16 +509,18 @@ function resetGame() {
   gameOverUI.style.display = "none";
 }
 
+/* ===========================
+   UPDATE LOGIC
+   =========================== */
 function update() {
   if (gameOver) return;
   if (shopOpen) return;
 
-  // mouse turret
   let mx = mouse.x + cam.x;
   let my = mouse.y + cam.y;
   player.turretAngle = Math.atan2(my - player.y, mx - player.x);
 
-  // move
+  // movement
   let dx = 0;
   let dy = 0;
 
@@ -417,7 +544,7 @@ function update() {
     player.x += dx * 120;
     player.y += dy * 120;
     player.dashCooldown = 180;
-    cam.shake = 14;
+    cam.shake = 15;
   }
 
   if (player.dashCooldown > 0) player.dashCooldown--;
@@ -427,7 +554,7 @@ function update() {
 
   resolveWallCollision(player);
 
-  // shoot
+  // shooting
   if (mouse.down) shoot(false, null);
   if (player.fireCooldown > 0) player.fireCooldown--;
 
@@ -438,7 +565,6 @@ function update() {
     b.y += b.vy;
     b.life--;
 
-    // wall hit
     for (let w of walls) {
       if (b.x > w.x && b.x < w.x + w.w && b.y > w.y && b.y < w.y + w.h) {
         explode(b.x, b.y);
@@ -448,11 +574,10 @@ function update() {
     }
 
     if (i >= bullets.length) continue;
-
     if (b.life <= 0) bullets.splice(i, 1);
   }
 
-  // spawn system
+  // spawn enemies
   let maxEnemies = 4 + level * 2;
   if (enemies.length < maxEnemies && Math.random() < 0.03) {
     spawnEnemy();
@@ -481,7 +606,6 @@ function update() {
       e.shootCooldown = rand(60, 120);
     }
 
-    // collision with player
     if (dist(e.x, e.y, player.x, player.y) < 38) {
       player.hp -= 0.35;
       cam.shake = Math.max(cam.shake, 6);
@@ -507,11 +631,11 @@ function update() {
             kills++;
             gold += 20 + level * 3;
 
-            // kill ödülü HP
+            // kill heal
             player.hp += 12;
             if (player.hp > player.maxHp) player.hp = player.maxHp;
 
-            // max hp büyüsün
+            // max hp growth + level
             if (kills % 5 === 0) {
               player.maxHp += 10;
               player.hp = player.maxHp;
@@ -531,7 +655,7 @@ function update() {
     }
   }
 
-  // particles update
+  // particles
   for (let i = particles.length - 1; i >= 0; i--) {
     let p = particles[i];
     p.x += p.vx;
@@ -554,10 +678,12 @@ function update() {
   updateUI();
 }
 
+/* ===========================
+   RENDER
+   =========================== */
 function render() {
   ctx.save();
 
-  // camera shake
   if (cam.shake > 0.5) {
     ctx.translate(rand(-cam.shake, cam.shake), rand(-cam.shake, cam.shake));
   }
@@ -574,7 +700,7 @@ function render() {
 
   // particles
   for (let p of particles) {
-    ctx.fillStyle = `rgba(255,140,40,${p.life / 60})`;
+    ctx.fillStyle = `rgba(255,140,40,${p.life / 65})`;
     ctx.beginPath();
     ctx.arc(p.x - cam.x, p.y - cam.y, p.size, 0, Math.PI * 2);
     ctx.fill();
@@ -625,51 +751,17 @@ function render() {
   ctx.restore();
 }
 
+/* ===========================
+   LOOP
+   =========================== */
 function loop() {
   update();
   render();
   requestAnimationFrame(loop);
 }
 
-/* MOBILE BUTTONS */
-function setupMobileButton(btnId, keyName) {
-  const btn = document.getElementById(btnId);
-
-  btn.addEventListener("touchstart", (e) => {
-    e.preventDefault();
-    keys[keyName] = true;
-  });
-
-  btn.addEventListener("touchend", (e) => {
-    e.preventDefault();
-    keys[keyName] = false;
-  });
-}
-
-setupMobileButton("btnUp", "w");
-setupMobileButton("btnDown", "s");
-setupMobileButton("btnLeft", "a");
-setupMobileButton("btnRight", "d");
-
-document.getElementById("btnShoot").addEventListener("touchstart", (e) => {
-  e.preventDefault();
-  mouse.down = true;
-});
-
-document.getElementById("btnShoot").addEventListener("touchend", (e) => {
-  e.preventDefault();
-  mouse.down = false;
-});
-
-document.getElementById("btnDash").addEventListener("touchstart", (e) => {
-  e.preventDefault();
-  keys["shift"] = true;
-});
-
-document.getElementById("btnDash").addEventListener("touchend", (e) => {
-  e.preventDefault();
-  keys["shift"] = false;
-});
-
+/* ===========================
+   START GAME
+   =========================== */
 resetGame();
 loop();
