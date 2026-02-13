@@ -1,138 +1,69 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>⚡ TANK ARENA - 1v1 BOT SAVAŞI</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no" />
+  <title>Tank War PRO ULTRA</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <div class="arena">
-        <!-- HUD - Baş Üstü Göstergeler -->
-        <div class="hud">
-            <div class="player-card">
-                <div class="player-avatar">👨‍✈️</div>
-                <div class="player-info">
-                    <h2>SEN</h2>
-                    <div class="health-bar">
-                        <div class="health-fill" id="playerHealth" style="width: 100%"></div>
-                    </div>
-                    <div class="stats">
-                        <span>❤️ <span id="playerCan">100</span></span>
-                        <span>⚡ <span id="playerEnerji">100</span></span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="vs">⚔️ VS ⚔️</div>
-            
-            <div class="bot-card">
-                <div class="bot-avatar">🤖</div>
-                <div class="bot-info">
-                    <h2>BOT X-9000</h2>
-                    <div class="health-bar enemy">
-                        <div class="health-fill" id="botHealth" style="width: 100%"></div>
-                    </div>
-                    <div class="stats">
-                        <span>❤️ <span id="botCan">100</span></span>
-                        <span>🎯 <span id="botSeviye">PRO</span></span>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Oyun Alanı -->
-        <div class="oyun-alani">
-            <canvas id="savasAlani"></canvas>
-            
-            <!-- Savaş Bildirimleri -->
-            <div id="savasBildirim" class="savas-bildirim"></div>
-            
-            <!-- Oyun Sonu Menüsü -->
-            <div id="oyunSonu" class="oyun-sonu">
-                <h1 id="sonucMesaji"></h1>
-                <div class="sonuc-detay">
-                    <p>🎯 İsabet: <span id="isabetOrani">0</span>%</p>
-                    <p>💥 Vuruş: <span id="toplamVurus">0</span></p>
-                    <p>⏱️ Süre: <span id="savasSuresi">0</span>sn</p>
-                </div>
-                <button id="tekrarSavas" class="savas-buton">⚔️ TEKRAR SAVAŞ</button>
-                <button id="anaMenu" class="menu-buton">🏠 ANA MENÜ</button>
-            </div>
-        </div>
-
-        <!-- Kontrol Paneli -->
-        <div class="kontrol-panel">
-            <!-- PC Kontrolleri -->
-            <div class="pc-kontroller">
-                <div class="kontrol-grup">
-                    <span class="tus">W</span>
-                    <span class="tus">A</span>
-                    <span class="tus">S</span>
-                    <span class="tus">D</span>
-                    <span class="tus-ayrim">HAREKET</span>
-                </div>
-                <div class="kontrol-grup">
-                    <span class="tus space">SPACE</span>
-                    <span class="tus-ayrim">ATEŞ</span>
-                </div>
-                <div class="kontrol-grup">
-                    <span class="tus">Q</span>
-                    <span class="tus-ayrim">SİPER</span>
-                </div>
-                <div class="kontrol-grup">
-                    <span class="tus">E</span>
-                    <span class="tus-ayrim">ÖZEL</span>
-                </div>
-            </div>
-            
-            <!-- Mobil Kontrolleri -->
-            <div class="mobil-kontroller">
-                <div class="sol-panel">
-                    <div class="hareket-pad">
-                        <div class="pad-satir">
-                            <button class="pad-btn" id="mobYukari">⬆️</button>
-                        </div>
-                        <div class="pad-satir">
-                            <button class="pad-btn" id="mobSol">⬅️</button>
-                            <button class="pad-btn" id="mobAsagi">⬇️</button>
-                            <button class="pad-btn" id="mobSag">➡️</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="sag-panel">
-                    <button class="ates-btn" id="mobAtes">🔥 ATEŞ</button>
-                    <button class="ozel-btn" id="mobSiper">🛡️ SİPER</button>
-                    <button class="ozel-btn" id="mobOzel">💥 ÖZEL</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Savaş İstatistikleri -->
-        <div class="savas-istatistik">
-            <div class="istatistik-item">
-                <span class="ist-icon">🎯</span>
-                <span class="ist-label">İsabet</span>
-                <span class="ist-value" id="isabetSayac">0</span>
-            </div>
-            <div class="istatistik-item">
-                <span class="ist-icon">💥</span>
-                <span class="ist-label">Vuruş</span>
-                <span class="ist-value" id="vurusSayac">0</span>
-            </div>
-            <div class="istatistik-item">
-                <span class="ist-icon">🛡️</span>
-                <span class="ist-label">Savunma</span>
-                <span class="ist-value" id="savunmaSayac">0</span>
-            </div>
-            <div class="istatistik-item">
-                <span class="ist-icon">⚡</span>
-                <span class="ist-label">Enerji</span>
-                <span class="ist-value" id="enerjiSayac">100</span>
-            </div>
-        </div>
+  <div id="hud">
+    <div class="hudBox">
+      <div class="title">🔥 Tank War PRO</div>
+      <div>Can: <span id="hpText">100</span> / <span id="maxHpText">100</span></div>
+      <div>Skor: <span id="scoreText">0</span></div>
+      <div>Level: <span id="levelText">1</span></div>
+      <div>Altın: <span id="goldText">0</span></div>
+      <div>Öldürme: <span id="killText">0</span></div>
     </div>
 
-    <script src="script.js"></script>
+    <div class="hudBox small">
+      <div class="title">🎮 Kontroller</div>
+      <div>WASD: Hareket</div>
+      <div>Mouse: Nişan</div>
+      <div>Sol Tık: Ateş</div>
+      <div>Shift: Dash</div>
+      <div>E: Shop aç/kapat</div>
+    </div>
+  </div>
+
+  <div id="shop">
+    <h2>🛒 Shop</h2>
+    <p>Altın: <span id="shopGold">0</span></p>
+
+    <button id="buyDmg">💥 Damage +5 (50 altın)</button>
+    <button id="buySpeed">⚡ Speed +0.4 (50 altın)</button>
+    <button id="buyMaxHp">❤️ Max HP +20 (70 altın)</button>
+    <button id="buyFireRate">🔫 Fire Rate (80 altın)</button>
+
+    <button id="closeShop">Kapat</button>
+  </div>
+
+  <canvas id="game"></canvas>
+
+  <div id="gameOver">
+    <h1>GAME OVER</h1>
+    <p>Skor: <span id="finalScore">0</span></p>
+    <button id="restart">Tekrar Başlat</button>
+  </div>
+
+  <!-- mobil tuşlar -->
+  <div id="mobileControls">
+    <div class="row">
+      <button class="mBtn" id="btnUp">▲</button>
+    </div>
+    <div class="row">
+      <button class="mBtn" id="btnLeft">◀</button>
+      <button class="mBtn" id="btnDown">▼</button>
+      <button class="mBtn" id="btnRight">▶</button>
+    </div>
+    <div class="row">
+      <button class="mBtn shoot" id="btnShoot">FIRE</button>
+      <button class="mBtn dash" id="btnDash">DASH</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>

@@ -1,717 +1,675 @@
-// ========== CANVAS AYARLARI ==========
-const canvas = document.getElementById('savasAlani');
-const ctx = canvas.getContext('2d');
-let canvasWidth, canvasHeight;
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-function canvasBoyutlandir() {
-    canvasWidth = canvas.clientWidth;
-    canvasHeight = canvas.clientHeight;
-    canvas.width = canvasWidth;
-    canvas.height = canvasHeight;
+let W = window.innerWidth;
+let H = window.innerHeight;
+
+canvas.width = W;
+canvas.height = H;
+
+window.addEventListener("resize", () => {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W;
+  canvas.height = H;
+});
+
+const hpText = document.getElementById("hpText");
+const maxHpText = document.getElementById("maxHpText");
+const scoreText = document.getElementById("scoreText");
+const levelText = document.getElementById("levelText");
+const goldText = document.getElementById("goldText");
+const killText = document.getElementById("killText");
+
+const shopUI = document.getElementById("shop");
+const shopGold = document.getElementById("shopGold");
+
+const buyDmg = document.getElementById("buyDmg");
+const buySpeed = document.getElementById("buySpeed");
+const buyMaxHp = document.getElementById("buyMaxHp");
+const buyFireRate = document.getElementById("buyFireRate");
+const closeShop = document.getElementById("closeShop");
+
+const gameOverUI = document.getElementById("gameOver");
+const finalScore = document.getElementById("finalScore");
+const restartBtn = document.getElementById("restart");
+
+const tankImg = new Image();
+tankImg.src = "assets/tank.png";
+
+const boomSound = new Audio("assets/patlama.mp3");
+boomSound.volume = 0.6;
+
+function playBoom() {
+  boomSound.currentTime = 0;
+  boomSound.play();
 }
-canvasBoyutlandir();
-window.addEventListener('resize', canvasBoyutlandir);
 
-// ========== OYUN DEĞİŞKENLERİ ==========
-let oyun = {
-    aktif: true,
-    baslangicZamani: Date.now(),
-    sure: 0,
-    isabetSayisi: 0,
-    atesSayisi: 0,
-    vurusSayisi: 0,
-    savunmaSayisi: 0
+let keys = {};
+let mouse = { x: W / 2, y: H / 2, down: false };
+
+document.addEventListener("keydown", (e) => {
+  keys[e.key.toLowerCase()] = true;
+});
+
+document.addEventListener("keyup", (e) => {
+  keys[e.key.toLowerCase()] = false;
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+});
+
+canvas.addEventListener("mousedown", () => mouse.down = true);
+canvas.addEventListener("mouseup", () => mouse.down = false);
+
+function rand(min, max) {
+  return Math.random() * (max - min) + min;
+}
+
+function dist(ax, ay, bx, by) {
+  return Math.hypot(ax - bx, ay - by);
+}
+
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+/* CAMERA */
+let cam = {
+  x: 0,
+  y: 0,
+  shake: 0
 };
 
-// ========== PLAYER TANKI (SEN!) ==========
+/* GAME WORLD */
+const world = {
+  width: 2600,
+  height: 2000
+};
+
+/* WALLS */
+let walls = [
+  { x: 500, y: 400, w: 500, h: 60 },
+  { x: 900, y: 800, w: 60, h: 500 },
+  { x: 1400, y: 350, w: 300, h: 80 },
+  { x: 1700, y: 900, w: 500, h: 60 },
+  { x: 300, y: 1300, w: 700, h: 70 },
+  { x: 2000, y: 1400, w: 80, h: 400 }
+];
+
+function rectCircleCollide(rx, ry, rw, rh, cx, cy, cr) {
+  let closestX = clamp(cx, rx, rx + rw);
+  let closestY = clamp(cy, ry, ry + rh);
+  let dx = cx - closestX;
+  let dy = cy - closestY;
+  return (dx * dx + dy * dy) < cr * cr;
+}
+
 let player = {
-    x: 150,
-    y: 300,
-    genislik: 50,
-    yukseklik: 40,
-    can: 100,
-    maxCan: 100,
-    enerji: 100,
-    maxEnerji: 100,
-    hiz: 6,
-    mermiHizi: 10,
-    mermiHasar: 15,
-    atesHizi: 10,
-    atesGecikme: 0,
-    siperAktif: false,
-    siperSuresi: 0,
-    ozelHazir: true,
-    ozelBekleme: 0,
-    yon: 'sag'
+  x: world.width / 2,
+  y: world.height / 2,
+  angle: 0,
+  turretAngle: 0,
+  radius: 24,
+  hp: 100,
+  maxHp: 100,
+  speed: 3.2,
+  dashCooldown: 0,
+  damage: 25,
+  fireRate: 12,
+  fireCooldown: 0
 };
 
-// ========== BOT TANKI (X-9000 - GERÇEK BOT!) ==========
-let bot = {
-    x: 1200,
-    y: 300,
-    genislik: 50,
-    yukseklik: 40,
-    can: 100,
-    maxCan: 100,
-    hiz: 3.5,
-    mermiHizi: 8,
-    mermiHasar: 12,
-    atesHizi: 15,
-    atesGecikme: 0,
-    zekaSeviyesi: 'PRO',
-    saldirganlik: 0.8,
-    savunmaModu: false,
-    hedefX: 150,
-    hedefY: 300,
-    yon: 'sol'
-};
+let bullets = [];
+let enemies = [];
+let particles = [];
 
-// ========== MERMİLER ==========
-let mermiler = [];
-let botMermileri = [];
+let score = 0;
+let kills = 0;
+let level = 1;
+let gold = 0;
+let gameOver = false;
+let shopOpen = false;
 
-// ========== EFEKTLER ==========
-let patlamalar = [];
-let savunmaAlanlari = [];
+function spawnEnemy() {
+  let side = Math.floor(rand(0, 4));
+  let x, y;
 
-// ========== KONTROLLER ==========
-let tuslar = {
-    w: false, a: false, s: false, d: false,
-    space: false, q: false, e: false
-};
+  if (side === 0) { x = 50; y = rand(50, world.height - 50); }
+  if (side === 1) { x = world.width - 50; y = rand(50, world.height - 50); }
+  if (side === 2) { x = rand(50, world.width - 50); y = 50; }
+  if (side === 3) { x = rand(50, world.width - 50); y = world.height - 50; }
 
-// ========== OYUNU BAŞLAT ==========
-function oyunuBaslat() {
-    player = {
-        ...player,
-        x: 150,
-        y: canvasHeight / 2,
-        can: 100,
-        enerji: 100,
-        siperAktif: false,
-        ozelHazir: true
-    };
-    
-    bot = {
-        ...bot,
-        x: canvasWidth - 200,
-        y: canvasHeight / 2,
-        can: 100,
-        savunmaModu: false
-    };
-    
-    mermiler = [];
-    botMermileri = [];
-    patlamalar = [];
-    savunmaAlanlari = [];
-    
-    oyun = {
-        aktif: true,
-        baslangicZamani: Date.now(),
-        sure: 0,
-        isabetSayisi: 0,
-        atesSayisi: 0,
-        vurusSayisi: 0,
-        savunmaSayisi: 0
-    };
-    
-    document.getElementById('playerCan').textContent = player.can;
-    document.getElementById('botCan').textContent = bot.can;
-    document.getElementById('playerEnerji').textContent = player.enerji;
-    document.getElementById('oyunSonu').style.display = 'none';
-    
-    bildirimGoster('⚔️ SAVAŞ BAŞLADI! ⚔️', 2000);
+  enemies.push({
+    x, y,
+    radius: 22,
+    hp: 60 + level * 18,
+    maxHp: 60 + level * 18,
+    speed: 1.4 + level * 0.12,
+    shootCooldown: rand(50, 100),
+    turretAngle: 0
+  });
 }
 
-// ========== BİLDİRİM ==========
-function bildirimGoster(mesaj, sure = 1500) {
-    const bildirim = document.getElementById('savasBildirim');
-    bildirim.textContent = mesaj;
-    bildirim.style.opacity = '1';
-    
-    setTimeout(() => {
-        bildirim.style.opacity = '0';
-    }, sure);
+function explode(x, y) {
+  playBoom();
+  cam.shake = 12;
+
+  for (let i = 0; i < 35; i++) {
+    particles.push({
+      x, y,
+      vx: rand(-4, 4),
+      vy: rand(-4, 4),
+      life: rand(25, 60),
+      size: rand(2, 7)
+    });
+  }
 }
 
-// ========== BOT YAPAY ZEKASI (GERÇEK BOT!) ==========
-function botAI() {
-    if (!oyun.aktif || bot.can <= 0) return;
-    
-    // HEDEF TAKİBİ - Bot seni takip eder!
-    bot.hedefX = player.x;
-    bot.hedefY = player.y;
-    
-    // MESAFE HESAPLA
-    const mesafeX = bot.x - player.x;
-    const mesafeY = bot.y - player.y;
-    const mesafe = Math.sqrt(mesafeX * mesafeX + mesafeY * mesafeY);
-    
-    // SAVUNMA MODU - Canı azalınca kaçar!
-    if (bot.can < 30) {
-        bot.savunmaModu = true;
-        // Geri çekil!
-        if (bot.x < canvasWidth - 100) bot.x += bot.hiz * 1.5;
-        if (bot.y > player.y + 50) bot.y -= bot.hiz;
-        if (bot.y < player.y - 50) bot.y += bot.hiz;
-    } else {
-        bot.savunmaModu = false;
-        // SALDIRI MODU - Yaklaş ve yok et!
-        if (mesafe > 300) {
-            // Yaklaş
-            if (bot.x > player.x + 50) bot.x -= bot.hiz;
-            if (bot.y > player.y + 30) bot.y -= bot.hiz;
-            if (bot.y < player.y - 30) bot.y += bot.hiz;
-        } else if (mesafe < 200) {
-            // Uzaklaş biraz
-            if (bot.x < canvasWidth - 100) bot.x += bot.hiz;
-        }
-    }
-    
-    // SINIRLAR
-    bot.x = Math.max(canvasWidth - 400, Math.min(canvasWidth - 100, bot.x));
-    bot.y = Math.max(50, Math.min(canvasHeight - 80, bot.y));
-    
-    // BOT YÖNÜNÜ BELİRLE
-    if (bot.x > player.x) bot.yon = 'sol';
-    else bot.yon = 'sag';
-    
-    // AKILLI ATEŞ!
-    bot.atesGecikme--;
-    if (bot.atesGecikme <= 0 && oyun.aktif) {
-        let atesEt = false;
-        
-        // Hedef görüş hattında mı?
-        if (Math.abs(bot.y - player.y) < 50) {
-            // Yatay hizada, direkt ateş!
-            atesEt = true;
-            bot.atesGecikme = bot.atesHizi;
-        } else if (mesafe < 400) {
-            // Yakın mesafe, ateş et!
-            atesEt = Math.random() < 0.7;
-            bot.atesGecikme = bot.atesHizi - 5;
-        }
-        
-        // Canı azaldıkça daha agresif!
-        if (bot.can < 50) {
-            atesEt = atesEt || Math.random() < 0.9;
-            bot.atesGecikme = bot.atesHizi - 8;
-        }
-        
-        if (atesEt) {
-            // Biraz sapma ekle (gerçekçilik)
-            const sapma = (Math.random() - 0.5) * 20;
-            
-            botMermileri.push({
-                x: bot.x - 10,
-                y: bot.y + bot.yukseklik/2 - 3 + sapma,
-                genislik: 15,
-                yukseklik: 6,
-                hiz: -bot.mermiHizi,
-                hasar: bot.savunmaModu ? bot.mermiHasar * 0.7 : bot.mermiHasar
-            });
-        }
-    }
+function shoot(fromEnemy = false, enemyObj = null) {
+  if (!fromEnemy) {
+    if (player.fireCooldown > 0) return;
+    player.fireCooldown = player.fireRate;
+  }
+
+  let sx, sy, ang, dmg;
+
+  if (!fromEnemy) {
+    sx = player.x + Math.cos(player.turretAngle) * 35;
+    sy = player.y + Math.sin(player.turretAngle) * 35;
+    ang = player.turretAngle;
+    dmg = player.damage;
+  } else {
+    sx = enemyObj.x + Math.cos(enemyObj.turretAngle) * 35;
+    sy = enemyObj.y + Math.sin(enemyObj.turretAngle) * 35;
+    ang = enemyObj.turretAngle;
+    dmg = 12 + level * 2;
+  }
+
+  bullets.push({
+    x: sx,
+    y: sy,
+    vx: Math.cos(ang) * 9,
+    vy: Math.sin(ang) * 9,
+    life: 110,
+    damage: dmg,
+    enemyBullet: fromEnemy
+  });
+
+  cam.shake = Math.max(cam.shake, 4);
 }
 
-// ========== PLAYER ATEŞ ==========
-function playerAtes() {
-    if (!oyun.aktif || player.atesGecikme > 0) return;
-    
-    player.atesGecikme = player.atesHizi;
-    oyun.atesSayisi++;
-    
-    // Özel yetenek aktif mi?
-    if (player.ozelHazir && tuslar.e) {
-        // 3'lü ateş!
-        mermiler.push({
-            x: player.x + player.genislik,
-            y: player.y + player.yukseklik/2 - 15,
-            genislik: 20,
-            yukseklik: 6,
-            hiz: player.mermiHizi + 2,
-            hasar: player.mermiHasar * 1.5
-        });
-        mermiler.push({
-            x: player.x + player.genislik,
-            y: player.y + player.yukseklik/2,
-            genislik: 20,
-            yukseklik: 6,
-            hiz: player.mermiHizi + 2,
-            hasar: player.mermiHasar * 1.5
-        });
-        mermiler.push({
-            x: player.x + player.genislik,
-            y: player.y + player.yukseklik/2 + 15,
-            genislik: 20,
-            yukseklik: 6,
-            hiz: player.mermiHizi + 2,
-            hasar: player.mermiHasar * 1.5
-        });
-        
-        player.ozelHazir = false;
-        player.ozelBekleme = 300;
-        bildirimGoster('💥 ÖZEL ATEŞ! 💥', 1000);
-    } else {
-        // Normal ateş
-        mermiler.push({
-            x: player.x + player.genislik,
-            y: player.y + player.yukseklik/2 - 3,
-            genislik: 18,
-            yukseklik: 6,
-            hiz: player.mermiHizi,
-            hasar: player.siperAktif ? player.mermiHasar * 1.2 : player.mermiHasar
-        });
+function resolveWallCollision(obj) {
+  for (let w of walls) {
+    if (rectCircleCollide(w.x, w.y, w.w, w.h, obj.x, obj.y, obj.radius)) {
+      let left = obj.x - w.x;
+      let right = (w.x + w.w) - obj.x;
+      let top = obj.y - w.y;
+      let bottom = (w.y + w.h) - obj.y;
+
+      let minVal = Math.min(left, right, top, bottom);
+
+      if (minVal === left) obj.x = w.x - obj.radius;
+      if (minVal === right) obj.x = w.x + w.w + obj.radius;
+      if (minVal === top) obj.y = w.y - obj.radius;
+      if (minVal === bottom) obj.y = w.y + w.h + obj.radius;
     }
+  }
 }
 
-// ========== SİPER KULLAN ==========
-function siperKullan() {
-    if (!oyun.aktif || player.enerji < 30) return;
-    
-    player.siperAktif = true;
-    player.siperSuresi = 100;
-    player.enerji -= 30;
-    oyun.savunmaSayisi++;
-    
-    savunmaAlanlari.push({
-        x: player.x,
-        y: player.y,
-        sure: 50
-    });
-    
-    document.getElementById('playerEnerji').textContent = player.enerji;
-    bildirimGoster('🛡️ SİPER AKTİF! 🛡️', 800);
+function updateCamera() {
+  cam.x = player.x - W / 2;
+  cam.y = player.y - H / 2;
+
+  cam.x = clamp(cam.x, 0, world.width - W);
+  cam.y = clamp(cam.y, 0, world.height - H);
+
+  if (cam.shake > 0.5) cam.shake *= 0.85;
+  else cam.shake = 0;
 }
 
-// ========== ÇARPIŞMA KONTROL ==========
-function carpismaKontrol(rect1, rect2) {
-    return rect1.x < rect2.x + rect2.genislik &&
-           rect1.x + rect1.genislik > rect2.x &&
-           rect1.y < rect2.y + rect2.yukseklik &&
-           rect1.y + rect1.yukseklik > rect2.y;
-}
+function drawWorld() {
+  ctx.fillStyle = "#06080f";
+  ctx.fillRect(0, 0, W, H);
 
-// ========== PATLAMA EKLE ==========
-function patlamaEkle(x, y, buyuk = false) {
-    patlamalar.push({
-        x: x,
-        y: y,
-        animasyon: 0,
-        maxAnimasyon: 20,
-        buyuk: buyuk
-    });
-}
+  // grid
+  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  ctx.lineWidth = 1;
 
-// ========== OYUN GÜNCELLEME ==========
-function guncelle() {
-    if (!oyun.aktif) return;
-    
-    // ===== PLAYER HAREKET =====
-    if (tuslar.w && player.y > 10) player.y -= player.hiz;
-    if (tuslar.s && player.y < canvasHeight - player.yukseklik - 10) player.y += player.hiz;
-    if (tuslar.a && player.x > 10) player.x -= player.hiz;
-    if (tuslar.d && player.x < canvasWidth / 2) player.x += player.hiz;
-    
-    // Yön belirle
-    if (tuslar.d) player.yon = 'sag';
-    if (tuslar.a) player.yon = 'sol';
-    if (tuslar.w) player.yon = 'yukari';
-    if (tuslar.s) player.yon = 'asagi';
-    
-    // ===== ATEŞ =====
-    player.atesGecikme--;
-    if (tuslar.space) playerAtes();
-    
-    // ===== SİPER =====
-    if (tuslar.q && player.enerji >= 30) siperKullan();
-    
-    // ===== ÖZEL YETEK BEKLEME =====
-    if (!player.ozelHazir) {
-        player.ozelBekleme--;
-        if (player.ozelBekleme <= 0) {
-            player.ozelHazir = true;
-            bildirimGoster('✨ ÖZEL YETEK HAZIR! ✨', 1500);
-        }
-    }
-    
-    // ===== SİPER SÜRESİ =====
-    if (player.siperAktif) {
-        player.siperSuresi--;
-        if (player.siperSuresi <= 0) {
-            player.siperAktif = false;
-        }
-    }
-    
-    // ===== ENERJİ YENİLENME =====
-    if (player.enerji < player.maxEnerji) {
-        player.enerji += 0.2;
-        document.getElementById('playerEnerji').textContent = Math.floor(player.enerji);
-    }
-    
-    // ===== BOT AI =====
-    botAI();
-    
-    // ===== MERMİ HAREKETİ =====
-    mermiler = mermiler.filter(m => {
-        m.x += m.hiz;
-        return m.x < canvasWidth + 50;
-    });
-    
-    botMermileri = botMermileri.filter(m => {
-        m.x += m.hiz;
-        return m.x > -50;
-    });
-    
-    // ===== MERMİ-BOT ÇARPIŞMA =====
-    mermiler.forEach(mermi => {
-        if (carpismaKontrol(mermi, bot) && bot.can > 0) {
-            bot.can -= mermi.hasar;
-            oyun.vurusSayisi++;
-            oyun.isabetSayisi++;
-            patlamaEkle(bot.x + bot.genislik/2, bot.y + bot.yukseklik/2);
-            
-            document.getElementById('botCan').textContent = Math.max(0, Math.floor(bot.can));
-            document.getElementById('botHealth').style.width = (bot.can / bot.maxCan * 100) + '%';
-            document.getElementById('vurusSayac').textContent = oyun.vurusSayisi;
-            document.getElementById('isabetSayac').textContent = oyun.isabetSayisi;
-            
-            // Mermiyi kaldır
-            mermiler = mermiler.filter(m => m !== mermi);
-            
-            if (bot.can <= 0) {
-                bot.can = 0;
-                oyun.aktif = false;
-                oyunBitir('kazandin');
-            }
-        }
-    });
-    
-    // ===== BOT MERMİSİ-PLAYER ÇARPIŞMA =====
-    botMermileri.forEach(mermi => {
-        let hasarAl = true;
-        
-        // Siper kontrolü
-        if (player.siperAktif) {
-            hasarAl = Math.random() < 0.5;
-        }
-        
-        if (carpismaKontrol(mermi, player) && hasarAl) {
-            player.can -= mermi.hasar;
-            patlamaEkle(player.x + player.genislik/2, player.y + player.yukseklik/2, false);
-            
-            document.getElementById('playerCan').textContent = Math.max(0, Math.floor(player.can));
-            document.getElementById('playerHealth').style.width = (player.can / player.maxCan * 100) + '%';
-            
-            botMermileri = botMermileri.filter(m => m !== mermi);
-            
-            if (player.can <= 0) {
-                player.can = 0;
-                oyun.aktif = false;
-                oyunBitir('kaybettin');
-            }
-        }
-    });
-    
-    // ===== PATLAMA ANİMASYON =====
-    patlamalar = patlamalar.filter(p => {
-        p.animasyon++;
-        return p.animasyon < p.maxAnimasyon;
-    });
-    
-    // ===== SAVUNMA ALANI =====
-    savunmaAlanlari = savunmaAlanlari.filter(s => {
-        s.sure--;
-        return s.sure > 0;
-    });
-    
-    // ===== OYUN SÜRESİ =====
-    oyun.sure = Math.floor((Date.now() - oyun.baslangicZamani) / 1000);
-}
-
-// ========== ÇİZİM ==========
-function ciz() {
-    // Temizle
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    
-    // ===== ARKAPLAN =====
-    // Zemin
-    ctx.fillStyle = '#1e3a2a';
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-    
-    // Grid
-    ctx.strokeStyle = '#2a5a3a';
-    ctx.lineWidth = 0.5;
-    for(let i = 0; i < canvasWidth; i += 70) {
-        ctx.beginPath();
-        ctx.moveTo(i, 0);
-        ctx.lineTo(i, canvasHeight);
-        ctx.stroke();
-    }
-    for(let i = 0; i < canvasHeight; i += 70) {
-        ctx.beginPath();
-        ctx.moveTo(0, i);
-        ctx.lineTo(canvasWidth, i);
-        ctx.stroke();
-    }
-    
-    // ===== ORTA ÇİZGİ =====
-    ctx.strokeStyle = '#ffd700';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([20, 20]);
+  for (let x = 0; x < world.width; x += 70) {
     ctx.beginPath();
-    ctx.moveTo(canvasWidth/2, 0);
-    ctx.lineTo(canvasWidth/2, canvasHeight);
+    ctx.moveTo(x - cam.x, 0 - cam.y);
+    ctx.lineTo(x - cam.x, world.height - cam.y);
     ctx.stroke();
-    ctx.setLineDash([]);
-    
-    // ===== SAVUNMA ALANI =====
-    savunmaAlanlari.forEach(s => {
-        ctx.fillStyle = 'rgba(0, 255, 255, 0.2)';
-        ctx.beginPath();
-        ctx.arc(s.x + player.genislik/2, s.y + player.yukseklik/2, 60, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.strokeStyle = 'cyan';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(s.x + player.genislik/2, s.y + player.yukseklik/2, 60, 0, Math.PI * 2);
-        ctx.stroke();
-    });
-    
-    // ===== PLAYER TANKI =====
-    // Ana gövde
-    ctx.fillStyle = '#4a9a7a';
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = '#2a6a4a';
-    ctx.fillRect(player.x, player.y, player.genislik, player.yukseklik);
-    
-    // Taret
-    ctx.fillStyle = '#2a6a4a';
-    ctx.fillRect(player.x + 30, player.y - 5, 15, player.yukseklik + 10);
-    
-    // Top
-    ctx.fillStyle = '#c44a4a';
-    if (player.yon === 'sag') {
-        ctx.fillRect(player.x + 45, player.y + player.yukseklik/2 - 5, 20, 10);
-    } else if (player.yon === 'sol') {
-        ctx.fillRect(player.x - 20, player.y + player.yukseklik/2 - 5, 20, 10);
-    } else if (player.yon === 'yukari') {
-        ctx.fillRect(player.x + player.genislik/2 - 5, player.y - 20, 10, 20);
-    } else if (player.yon === 'asagi') {
-        ctx.fillRect(player.x + player.genislik/2 - 5, player.y + player.yukseklik, 10, 20);
-    }
-    
-    // Kule
-    ctx.fillStyle = '#ffd700';
+  }
+
+  for (let y = 0; y < world.height; y += 70) {
     ctx.beginPath();
-    ctx.arc(player.x + 38, player.y + player.yukseklik/2, 8, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Siper aktif işareti
-    if (player.siperAktif) {
-        ctx.fillStyle = 'rgba(0, 255, 255, 0.5)';
-        ctx.beginPath();
-        ctx.arc(player.x + player.genislik/2, player.y + player.yukseklik/2, 40, 0, Math.PI * 2);
-        ctx.fill();
-    }
-    
-    // ===== BOT TANKI =====
-    ctx.shadowColor = '#8a2a2a';
-    ctx.fillStyle = '#c44a4a';
-    ctx.fillRect(bot.x, bot.y, bot.genislik, bot.yukseklik);
-    
-    ctx.fillStyle = '#8a2a2a';
-    ctx.fillRect(bot.x - 15, bot.y + bot.yukseklik/2 - 7, 20, 14);
-    
-    ctx.fillStyle = '#000';
-    ctx.beginPath();
-    ctx.arc(bot.x - 20, bot.y + bot.yukseklik/2, 8, 0, Math.PI * 2);
-    ctx.fill();
-    
-    ctx.fillStyle = '#ff0000';
-    ctx.beginPath();
-    ctx.arc(bot.x - 20, bot.y + bot.yukseklik/2, 5, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Bot savunma modu
-    if (bot.savunmaModu) {
-        ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
-        ctx.beginPath();
-        ctx.arc(bot.x - bot.genislik/2, bot.y + bot.yukseklik/2, 50, 0, Math.PI * 2);
-        ctx.fill();
-    }
-    
-    ctx.shadowBlur = 0;
-    
-    // ===== MERMİLER =====
-    mermiler.forEach(m => {
-        ctx.fillStyle = '#ffd700';
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#ffaa00';
-        ctx.fillRect(m.x, m.y, m.genislik, m.yukseklik);
-    });
-    
-    botMermileri.forEach(m => {
-        ctx.fillStyle = '#ff4444';
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#ff0000';
-        ctx.fillRect(m.x, m.y, m.genislik, m.yukseklik);
-    });
-    
-    // ===== PATLAMALAR =====
-    patlamalar.forEach(p => {
-        const opacity = 1 - (p.animasyon / p.maxAnimasyon);
-        const radius = p.buyuk ? 30 : 20;
-        
-        ctx.fillStyle = `rgba(255, 100, 0, ${opacity})`;
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = '#ff5500';
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, radius * (1 - p.animasyon / p.maxAnimasyon), 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.fillStyle = `rgba(255, 200, 0, ${opacity})`;
-        ctx.beginPath();
-        ctx.arc(p.x - 5, p.y - 5, radius/2 * (1 - p.animasyon / p.maxAnimasyon), 0, Math.PI * 2);
-        ctx.fill();
-    });
-    
-    ctx.shadowBlur = 0;
+    ctx.moveTo(0 - cam.x, y - cam.y);
+    ctx.lineTo(world.width - cam.x, y - cam.y);
+    ctx.stroke();
+  }
+
+  // walls
+  for (let w of walls) {
+    ctx.fillStyle = "rgba(120,120,140,0.35)";
+    ctx.fillRect(w.x - cam.x, w.y - cam.y, w.w, w.h);
+
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.strokeRect(w.x - cam.x, w.y - cam.y, w.w, w.h);
+  }
 }
 
-// ========== OYUN BİTİR ==========
-function oyunBitir(sonuc) {
-    oyun.aktif = false;
-    
-    const sonucMesaji = document.getElementById('sonucMesaji');
-    const isabetOrani = document.getElementById('isabetOrani');
-    const toplamVurus = document.getElementById('toplamVurus');
-    const savasSuresi = document.getElementById('savasSuresi');
-    
-    toplamVurus.textContent = oyun.vurusSayisi;
-    savasSuresi.textContent = oyun.sure;
-    
-    const isabetYuzde = oyun.atesSayisi > 0 
-        ? Math.floor((oyun.isabetSayisi / oyun.atesSayisi) * 100) 
-        : 0;
-    isabetOrani.textContent = isabetYuzde;
-    
-    if (sonuc === 'kazandin') {
-        sonucMesaji.textContent = '🏆 ZAFER! 🏆';
-        sonucMesaji.style.color = 'gold';
-        bildirimGoster('🎉 BOTU YENDİN! 🎉', 3000);
+function drawTankSprite(x, y, angle, size, tint = null) {
+  ctx.save();
+  ctx.translate(x - cam.x, y - cam.y);
+  ctx.rotate(angle);
+
+  if (tint) {
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = tint;
+    ctx.fillRect(-size / 2, -size / 2, size, size);
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.drawImage(tankImg, -size / 2, -size / 2, size, size);
+
+  ctx.restore();
+}
+
+function drawHealthBar(x, y, hp, maxHp) {
+  let w = 55;
+  let h = 7;
+  let ratio = clamp(hp / maxHp, 0, 1);
+
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fillRect(x - w / 2 - cam.x, y - 40 - cam.y, w, h);
+
+  ctx.fillStyle = "#55ff99";
+  ctx.fillRect(x - w / 2 - cam.x, y - 40 - cam.y, w * ratio, h);
+
+  ctx.strokeStyle = "rgba(255,255,255,0.15)";
+  ctx.strokeRect(x - w / 2 - cam.x, y - 40 - cam.y, w, h);
+}
+
+function updateUI() {
+  hpText.textContent = Math.floor(player.hp);
+  maxHpText.textContent = player.maxHp;
+  scoreText.textContent = score;
+  levelText.textContent = level;
+  goldText.textContent = gold;
+  killText.textContent = kills;
+
+  shopGold.textContent = gold;
+}
+
+function openShop() {
+  shopOpen = true;
+  shopUI.style.display = "block";
+}
+
+function closeShopUI() {
+  shopOpen = false;
+  shopUI.style.display = "none";
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key.toLowerCase() === "e") {
+    if (!shopOpen) openShop();
+    else closeShopUI();
+  }
+});
+
+closeShop.addEventListener("click", () => closeShopUI());
+
+buyDmg.addEventListener("click", () => {
+  if (gold >= 50) {
+    gold -= 50;
+    player.damage += 5;
+  }
+});
+
+buySpeed.addEventListener("click", () => {
+  if (gold >= 50) {
+    gold -= 50;
+    player.speed += 0.4;
+  }
+});
+
+buyMaxHp.addEventListener("click", () => {
+  if (gold >= 70) {
+    gold -= 70;
+    player.maxHp += 20;
+    player.hp = player.maxHp;
+  }
+});
+
+buyFireRate.addEventListener("click", () => {
+  if (gold >= 80) {
+    gold -= 80;
+    player.fireRate = Math.max(4, player.fireRate - 2);
+    gold -= 0;
+  }
+});
+
+restartBtn.addEventListener("click", () => {
+  resetGame();
+});
+
+function resetGame() {
+  player.x = world.width / 2;
+  player.y = world.height / 2;
+  player.hp = 100;
+  player.maxHp = 100;
+  player.speed = 3.2;
+  player.damage = 25;
+  player.fireRate = 12;
+  player.fireCooldown = 0;
+
+  bullets = [];
+  enemies = [];
+  particles = [];
+
+  score = 0;
+  kills = 0;
+  level = 1;
+  gold = 0;
+
+  gameOver = false;
+  cam.shake = 0;
+
+  closeShopUI();
+  gameOverUI.style.display = "none";
+}
+
+function update() {
+  if (gameOver) return;
+  if (shopOpen) return;
+
+  // mouse turret
+  let mx = mouse.x + cam.x;
+  let my = mouse.y + cam.y;
+  player.turretAngle = Math.atan2(my - player.y, mx - player.x);
+
+  // move
+  let dx = 0;
+  let dy = 0;
+
+  if (keys["w"]) dy -= 1;
+  if (keys["s"]) dy += 1;
+  if (keys["a"]) dx -= 1;
+  if (keys["d"]) dx += 1;
+
+  let len = Math.hypot(dx, dy);
+  if (len > 0) {
+    dx /= len;
+    dy /= len;
+
+    player.x += dx * player.speed;
+    player.y += dy * player.speed;
+    player.angle = Math.atan2(dy, dx);
+  }
+
+  // dash
+  if ((keys["shift"] || keys["shiftleft"]) && player.dashCooldown <= 0 && len > 0) {
+    player.x += dx * 120;
+    player.y += dy * 120;
+    player.dashCooldown = 180;
+    cam.shake = 14;
+  }
+
+  if (player.dashCooldown > 0) player.dashCooldown--;
+
+  player.x = clamp(player.x, 40, world.width - 40);
+  player.y = clamp(player.y, 40, world.height - 40);
+
+  resolveWallCollision(player);
+
+  // shoot
+  if (mouse.down) shoot(false, null);
+  if (player.fireCooldown > 0) player.fireCooldown--;
+
+  // bullets update
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    let b = bullets[i];
+    b.x += b.vx;
+    b.y += b.vy;
+    b.life--;
+
+    // wall hit
+    for (let w of walls) {
+      if (b.x > w.x && b.x < w.x + w.w && b.y > w.y && b.y < w.y + w.h) {
+        explode(b.x, b.y);
+        bullets.splice(i, 1);
+        break;
+      }
+    }
+
+    if (i >= bullets.length) continue;
+
+    if (b.life <= 0) bullets.splice(i, 1);
+  }
+
+  // spawn system
+  let maxEnemies = 4 + level * 2;
+  if (enemies.length < maxEnemies && Math.random() < 0.03) {
+    spawnEnemy();
+  }
+
+  // enemy ai
+  for (let e of enemies) {
+    let ang = Math.atan2(player.y - e.y, player.x - e.x);
+    e.turretAngle = ang;
+
+    let d = dist(e.x, e.y, player.x, player.y);
+
+    if (d > 170) {
+      e.x += Math.cos(ang) * e.speed;
+      e.y += Math.sin(ang) * e.speed;
     } else {
-        sonucMesaji.textContent = '💀 YENİLDİN 💀';
-        sonucMesaji.style.color = '#ff4444';
-        bildirimGoster('🤖 BOT KAZANDI! 🤖', 3000);
+      e.x -= Math.cos(ang) * e.speed * 0.4;
+      e.y -= Math.sin(ang) * e.speed * 0.4;
     }
-    
-    document.getElementById('oyunSonu').style.display = 'flex';
+
+    resolveWallCollision(e);
+
+    e.shootCooldown--;
+    if (e.shootCooldown <= 0 && d < 650) {
+      shoot(true, e);
+      e.shootCooldown = rand(60, 120);
+    }
+
+    // collision with player
+    if (dist(e.x, e.y, player.x, player.y) < 38) {
+      player.hp -= 0.35;
+      cam.shake = Math.max(cam.shake, 6);
+    }
+  }
+
+  // bullet collisions
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    let b = bullets[i];
+
+    if (!b.enemyBullet) {
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        let e = enemies[j];
+
+        if (dist(b.x, b.y, e.x, e.y) < 24) {
+          e.hp -= b.damage;
+          explode(b.x, b.y);
+          bullets.splice(i, 1);
+
+          if (e.hp <= 0) {
+            enemies.splice(j, 1);
+            score += 15;
+            kills++;
+            gold += 20 + level * 3;
+
+            // kill ödülü HP
+            player.hp += 12;
+            if (player.hp > player.maxHp) player.hp = player.maxHp;
+
+            // max hp büyüsün
+            if (kills % 5 === 0) {
+              player.maxHp += 10;
+              player.hp = player.maxHp;
+              level++;
+            }
+          }
+          break;
+        }
+      }
+    } else {
+      if (dist(b.x, b.y, player.x, player.y) < 24) {
+        player.hp -= b.damage;
+        cam.shake = 10;
+        explode(b.x, b.y);
+        bullets.splice(i, 1);
+      }
+    }
+  }
+
+  // particles update
+  for (let i = particles.length - 1; i >= 0; i--) {
+    let p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vx *= 0.94;
+    p.vy *= 0.94;
+    p.life--;
+
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  if (player.hp <= 0) {
+    player.hp = 0;
+    gameOver = true;
+    finalScore.textContent = score;
+    gameOverUI.style.display = "flex";
+  }
+
+  updateCamera();
+  updateUI();
 }
 
-// ========== EVENT LİSTENER'LAR ==========
-window.addEventListener('keydown', (e) => {
-    e.preventDefault();
-    if (e.key === ' ') tuslar.space = true;
-    if (e.key === 'w' || e.key === 'W') tuslar.w = true;
-    if (e.key === 'a' || e.key === 'A') tuslar.a = true;
-    if (e.key === 's' || e.key === 'S') tuslar.s = true;
-    if (e.key === 'd' || e.key === 'D') tuslar.d = true;
-    if (e.key === 'q' || e.key === 'Q') tuslar.q = true;
-    if (e.key === 'e' || e.key === 'E') tuslar.e = true;
-});
+function render() {
+  ctx.save();
 
-window.addEventListener('keyup', (e) => {
-    e.preventDefault();
-    if (e.key === ' ') tuslar.space = false;
-    if (e.key === 'w' || e.key === 'W') tuslar.w = false;
-    if (e.key === 'a' || e.key === 'A') tuslar.a = false;
-    if (e.key === 's' || e.key === 'S') tuslar.s = false;
-    if (e.key === 'd' || e.key === 'D') tuslar.d = false;
-    if (e.key === 'q' || e.key === 'Q') tuslar.q = false;
-    if (e.key === 'e' || e.key === 'E') tuslar.e = false;
-});
+  // camera shake
+  if (cam.shake > 0.5) {
+    ctx.translate(rand(-cam.shake, cam.shake), rand(-cam.shake, cam.shake));
+  }
 
-// ========== MOBİL KONTROLLER ==========
-function mobilKontrolEkle() {
-    const yukari = document.getElementById('mobYukari');
-    const asagi = document.getElementById('mobAsagi');
-    const sol = document.getElementById('mobSol');
-    const sag = document.getElementById('mobSag');
-    const ates = document.getElementById('mobAtes');
-    const siper = document.getElementById('mobSiper');
-    const ozel = document.getElementById('mobOzel');
-    
-    if (yukari) {
-        yukari.addEventListener('touchstart', (e) => { e.preventDefault(); tuslar.w = true; });
-        yukari.addEventListener('touchend', (e) => { e.preventDefault(); tuslar.w = false; });
-        yukari.addEventListener('mousedown', (e) => { e.preventDefault(); tuslar.w = true; });
-        yukari.addEventListener('mouseup', (e) => { e.preventDefault(); tuslar.w = false; });
-    }
-    
-    if (asagi) {
-        asagi.addEventListener('touchstart', (e) => { e.preventDefault(); tuslar.s = true; });
-        asagi.addEventListener('touchend', (e) => { e.preventDefault(); tuslar.s = false; });
-        asagi.addEventListener('mousedown', (e) => { e.preventDefault(); tuslar.s = true; });
-        asagi.addEventListener('mouseup', (e) => { e.preventDefault(); tuslar.s = false; });
-    }
-    
-    if (sol) {
-        sol.addEventListener('touchstart', (e) => { e.preventDefault(); tuslar.a = true; });
-        sol.addEventListener('touchend', (e) => { e.preventDefault(); tuslar.a = false; });
-        sol.addEventListener('mousedown', (e) => { e.preventDefault(); tuslar.a = true; });
-        sol.addEventListener('mouseup', (e) => { e.preventDefault(); tuslar.a = false; });
-    }
-    
-    if (sag) {
-        sag.addEventListener('touchstart', (e) => { e.preventDefault(); tuslar.d = true; });
-        sag.addEventListener('touchend', (e) => { e.preventDefault(); tuslar.d = false; });
-        sag.addEventListener('mousedown', (e) => { e.preventDefault(); tuslar.d = true; });
-        sag.addEventListener('mouseup', (e) => { e.preventDefault(); tuslar.d = false; });
-    }
-    
-    if (ates) {
-        ates.addEventListener('touchstart', (e) => { e.preventDefault(); playerAtes(); });
-        ates.addEventListener('mousedown', (e) => { e.preventDefault(); playerAtes(); });
-    }
-    
-    if (siper) {
-        siper.addEventListener('touchstart', (e) => { e.preventDefault(); siperKullan(); });
-        siper.addEventListener('mousedown', (e) => { e.preventDefault(); siperKullan(); });
-    }
-    
-    if (ozel) {
-        ozel.addEventListener('touchstart', (e) => { 
-            e.preventDefault(); 
-            tuslar.e = true;
-            playerAtes();
-            setTimeout(() => tuslar.e = false, 100);
-        });
-        ozel.addEventListener('mousedown', (e) => { 
-            e.preventDefault(); 
-            tuslar.e = true;
-            playerAtes();
-            setTimeout(() => tuslar.e = false, 100);
-        });
-    }
+  drawWorld();
+
+  // bullets
+  for (let b of bullets) {
+    ctx.fillStyle = b.enemyBullet ? "#ff4444" : "#ffee55";
+    ctx.beginPath();
+    ctx.arc(b.x - cam.x, b.y - cam.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // particles
+  for (let p of particles) {
+    ctx.fillStyle = `rgba(255,140,40,${p.life / 60})`;
+    ctx.beginPath();
+    ctx.arc(p.x - cam.x, p.y - cam.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // enemies
+  for (let e of enemies) {
+    drawTankSprite(e.x, e.y, e.turretAngle, 70, "rgba(255,0,0,0.4)");
+    drawHealthBar(e.x, e.y, e.hp, e.maxHp);
+  }
+
+  // player
+  drawTankSprite(player.x, player.y, player.turretAngle, 80, "rgba(0,255,120,0.25)");
+  drawHealthBar(player.x, player.y, player.hp, player.maxHp);
+
+  // minimap
+  let mapW = 170;
+  let mapH = 130;
+  let mapX = W - mapW - 20;
+  let mapY = 20;
+
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(mapX, mapY, mapW, mapH);
+
+  ctx.strokeStyle = "rgba(255,255,255,0.15)";
+  ctx.strokeRect(mapX, mapY, mapW, mapH);
+
+  // player dot
+  let px = mapX + (player.x / world.width) * mapW;
+  let py = mapY + (player.y / world.height) * mapH;
+
+  ctx.fillStyle = "#55ff99";
+  ctx.beginPath();
+  ctx.arc(px, py, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // enemy dots
+  for (let e of enemies) {
+    let ex = mapX + (e.x / world.width) * mapW;
+    let ey = mapY + (e.y / world.height) * mapH;
+
+    ctx.fillStyle = "#ff4444";
+    ctx.beginPath();
+    ctx.arc(ex, ey, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
 }
 
-// ========== BUTON EVENTLERİ ==========
-document.getElementById('tekrarSavas').addEventListener('click', oyunuBaslat);
-document.getElementById('anaMenu').addEventListener('click', oyunuBaslat);
+function loop() {
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
 
-// ========== OYUNU BAŞLAT ==========
-window.addEventListener('load', () => {
-    canvasBoyutlandir();
-    mobilKontrolEkle();
-    oyunuBaslat();
-    
-    // Oyun döngüsü
-    function oyunDongusu() {
-        if (oyun.aktif) guncelle();
-        ciz();
-        requestAnimationFrame(oyunDongusu);
-    }
-    oyunDongusu();
+/* MOBILE BUTTONS */
+function setupMobileButton(btnId, keyName) {
+  const btn = document.getElementById(btnId);
+
+  btn.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    keys[keyName] = true;
+  });
+
+  btn.addEventListener("touchend", (e) => {
+    e.preventDefault();
+    keys[keyName] = false;
+  });
+}
+
+setupMobileButton("btnUp", "w");
+setupMobileButton("btnDown", "s");
+setupMobileButton("btnLeft", "a");
+setupMobileButton("btnRight", "d");
+
+document.getElementById("btnShoot").addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  mouse.down = true;
 });
+
+document.getElementById("btnShoot").addEventListener("touchend", (e) => {
+  e.preventDefault();
+  mouse.down = false;
+});
+
+document.getElementById("btnDash").addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  keys["shift"] = true;
+});
+
+document.getElementById("btnDash").addEventListener("touchend", (e) => {
+  e.preventDefault();
+  keys["shift"] = false;
+});
+
+resetGame();
+loop();
